@@ -19,7 +19,7 @@ import top.wkbin.taixu.ui.settings.LocalizedText as Text
 internal fun SettingsGroup(content: @Composable () -> Unit) {
     RuntimeCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = MaterialTheme.shapes.large,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         contentPadding = PaddingValues(0.dp),
     ) {
@@ -39,7 +39,7 @@ internal fun SettingsRow(
 ) {
     val interaction = if (onClick == null) Modifier else Modifier.clickable(onClick = onClick)
     Row(
-        interaction.fillMaxWidth().heightIn(min = if (tonalIcon) 96.dp else SettingsDensity.rowMinHeight)
+        interaction.fillMaxWidth().heightIn(min = if (tonalIcon) 84.dp else SettingsDensity.rowMinHeight)
             .padding(horizontal = SettingsDensity.rowHorizontalPadding, vertical = SettingsDensity.rowVerticalPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(SettingsDensity.iconGap),

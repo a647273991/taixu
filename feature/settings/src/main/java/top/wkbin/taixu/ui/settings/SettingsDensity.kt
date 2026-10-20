@@ -8,14 +8,14 @@ import androidx.compose.ui.unit.sp
 
 /** Default settings density; system font scaling still applies normally. */
 internal object SettingsDensity {
-    val rowMinHeight = 80.dp
-    val rowHorizontalPadding = 20.dp
-    val rowVerticalPadding = 14.dp
+    val rowMinHeight = 68.dp
+    val rowHorizontalPadding = 16.dp
+    val rowVerticalPadding = 12.dp
     val iconSize = 24.dp
     val iconGap = 12.dp
     val textGap = 4.dp
     val cardPadding = 16.dp
-    val sectionGap = 20.dp
+    val sectionGap = 16.dp
 }
 
 @Composable
