@@ -296,15 +296,7 @@ val harnessModule = module {
 
     single<McpCommandBuilder> { McpCommandBuilder() }
 
-    single<McpHttpTransport> {
-        McpHttpTransport(
-            client = get(),
-            json = get(),
-            logger = get(),
-            oauthTokens = get(),
-            spillDirectory = File(get<Context>().cacheDir, "taixu_mcp_spills"),
-        )
-    }
+    mcpTransportDefinitions()
 
     single<top.wkbin.taixu.harness.mcp.McpCatalogAvailability> { top.wkbin.taixu.harness.mcp.McpCatalogAvailability(get(), get(), get()) }
     single<McpManager> {

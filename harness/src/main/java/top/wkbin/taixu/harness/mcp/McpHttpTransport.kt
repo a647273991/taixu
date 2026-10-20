@@ -56,7 +56,7 @@ class McpHttpTransport(
     private val json: Json,
     private val logger: AppLogger,
     private val oauthTokens: McpOAuthTokenProvider? = null,
-    private val spillDirectory: File? = null,
+    private val spillDirectory: File? = null, private val staticTokens: McpStaticTokenProvider? = null,
 ) : McpTransport {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -243,8 +243,8 @@ class McpHttpTransport(
      */
     private suspend fun bearerOf(server: McpServerConfig): String? {
         server.authToken.takeIf { it.isNotBlank() }?.let { return it }
-        if (server.id == BuiltinMcpPresets.BROWSER_BUILTIN_ID) return BuiltinBrowserMcpAccess.token
-        return oauthTokens?.accessToken(server)
+        if (server.authMode == McpAuthMode.STATIC_BEARER) staticTokens?.bearerFor(server.id)?.takeIf { it.isNotBlank() }?.let { return it }
+        return if (server.id == BuiltinMcpPresets.BROWSER_BUILTIN_ID) BuiltinBrowserMcpAccess.token else oauthTokens?.accessToken(server)
     }
 
     /**

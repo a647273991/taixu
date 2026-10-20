@@ -60,6 +60,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -762,6 +763,11 @@ private fun AddMcpServerDialog(
     onAddBatch: (List<McpServerConfig>) -> Unit = { list -> list.forEach(onAdd) },
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
+    val dialogContext = LocalContext.current
+    val staticTokenStore = remember(dialogContext) {
+        top.wkbin.taixu.core.datastore.McpStaticTokenStore(dialogContext)
+    }
+    val dialogScope = rememberCoroutineScope()
 
     // 表单状态
     var name by remember { mutableStateOf("") }
@@ -770,6 +776,7 @@ private fun AddMcpServerDialog(
     var command by remember { mutableStateOf("npx") }
     var argsStr by remember { mutableStateOf("") }
     var serverUrl by remember { mutableStateOf("http://127.0.0.1:8000/sse") }
+    var bearerToken by remember { mutableStateOf("") }
     var oauthEnabled by remember { mutableStateOf(false) }
     var oauthClientId by remember { mutableStateOf("") }
     var oauthAuthorizationEndpoint by remember { mutableStateOf("") }
@@ -938,6 +945,14 @@ private fun AddMcpServerDialog(
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
+                        OutlinedTextField(
+                            value = bearerToken,
+                            onValueChange = { bearerToken = it },
+                            label = { Text("Bearer Token（可选，加密保存，不导出）") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -1008,6 +1023,9 @@ private fun AddMcpServerDialog(
                     onClick = {
                         val id = "custom_" + System.currentTimeMillis()
                         val argsList = argsStr.trim().split(" ").filter { it.isNotBlank() }
+                        if (bearerToken.isNotBlank()) {
+                            dialogScope.launch { staticTokenStore.save(id, bearerToken.trim()) }
+                        }
                         onAdd(
                             McpServerConfig(
                                 id = id,
@@ -1017,7 +1035,12 @@ private fun AddMcpServerDialog(
                                 command = command.trim(),
                                 args = argsList,
                                 serverUrl = serverUrl.trim(),
-                                authMode = if (oauthEnabled) McpAuthMode.OAUTH else McpAuthMode.NONE,
+                                authMode = when {
+                                    oauthEnabled -> McpAuthMode.OAUTH
+                                    bearerToken.isNotBlank() -> McpAuthMode.STATIC_BEARER
+                                    else -> McpAuthMode.NONE
+                                },
+                                authToken = bearerToken.trim(),
                                 oauthClientId = oauthClientId.trim(),
                                 oauthAuthorizationEndpoint = oauthAuthorizationEndpoint.trim(),
                                 oauthTokenEndpoint = oauthTokenEndpoint.trim(),
@@ -1054,77 +1077,3 @@ private fun AddMcpServerDialog(
 }
 
 /** 解析用户粘贴的各类 MCP JSON 格式 */
-private fun parseMcpJson(rawJson: String): Result<List<McpServerConfig>> = runCatching {
-    val trimmed = rawJson.trim()
-    if (trimmed.isBlank()) error("请输入 JSON 内容")
-    val element = Json.parseToJsonElement(trimmed)
-    val list = mutableListOf<McpServerConfig>()
-    val rootObj = element.jsonObject
-
-    if (rootObj.containsKey("mcpServers")) {
-        val serversObj = rootObj["mcpServers"]?.jsonObject ?: error("mcpServers 不是有效的 JSON 对象")
-        for ((serverName, serverVal) in serversObj) {
-            val sObj = serverVal.jsonObject
-            val url = sObj["url"]?.jsonPrimitive?.contentOrNull.orEmpty()
-            val command = sObj["command"]?.jsonPrimitive?.contentOrNull.orEmpty()
-            val args = sObj["args"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty()
-            val env = sObj["env"]?.jsonObject?.mapValues { it.value.jsonPrimitive.contentOrNull.orEmpty() }.orEmpty()
-            val desc = sObj["description"]?.jsonPrimitive?.contentOrNull.orEmpty()
-            val authMode = if (sObj["authMode"]?.jsonPrimitive?.contentOrNull.equals("OAUTH", ignoreCase = true)) McpAuthMode.OAUTH else McpAuthMode.NONE
-            val oauthClientId = sObj["oauthClientId"]?.jsonPrimitive?.contentOrNull.orEmpty()
-            val oauthAuthorizationEndpoint = sObj["oauthAuthorizationEndpoint"]?.jsonPrimitive?.contentOrNull.orEmpty()
-            val oauthTokenEndpoint = sObj["oauthTokenEndpoint"]?.jsonPrimitive?.contentOrNull.orEmpty()
-            val oauthScope = sObj["oauthScope"]?.jsonPrimitive?.contentOrNull.orEmpty()
-            val oauthResource = sObj["oauthResource"]?.jsonPrimitive?.contentOrNull.orEmpty()
-
-            val isSse = url.isNotBlank() || (command.isBlank() && sObj.containsKey("url"))
-            list.add(
-                McpServerConfig(
-                    id = "custom_${serverName.lowercase().replace(Regex("[^a-z0-9_]"), "_")}_${System.currentTimeMillis()}",
-                    name = serverName,
-                    description = desc.ifBlank { if (isSse) "远程 HTTP 服务: $url" else "本地 Stdio: $command ${args.joinToString(" ")}" },
-                    transportType = if (isSse) McpTransportType.SSE else McpTransportType.STDIO,
-                    command = command,
-                    args = args,
-                    env = env,
-                    serverUrl = url,
-                    authMode = authMode,
-                    oauthClientId = oauthClientId,
-                    oauthAuthorizationEndpoint = oauthAuthorizationEndpoint,
-                    oauthTokenEndpoint = oauthTokenEndpoint,
-                    oauthScope = oauthScope,
-                    oauthResource = oauthResource,
-                    isEnabled = true,
-                    isBuiltin = false,
-                )
-            )
-        }
-    } else {
-        // 单个对象
-        val name = rootObj["name"]?.jsonPrimitive?.contentOrNull.orEmpty().ifBlank { "custom_mcp" }
-        val url = rootObj["url"]?.jsonPrimitive?.contentOrNull.orEmpty()
-        val command = rootObj["command"]?.jsonPrimitive?.contentOrNull.orEmpty()
-        val args = rootObj["args"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty()
-        val env = rootObj["env"]?.jsonObject?.mapValues { it.value.jsonPrimitive.contentOrNull.orEmpty() }.orEmpty()
-        val desc = rootObj["description"]?.jsonPrimitive?.contentOrNull.orEmpty()
-
-        val isSse = url.isNotBlank() || (command.isBlank() && rootObj.containsKey("url"))
-        if (command.isBlank() && url.isBlank()) error("配置中必须包含 command 或 url 字段")
-        list.add(
-            McpServerConfig(
-                id = "custom_${name.lowercase().replace(Regex("[^a-z0-9_]"), "_")}_${System.currentTimeMillis()}",
-                name = name,
-                description = desc.ifBlank { if (isSse) "远程 HTTP 服务: $url" else "本地 Stdio: $command ${args.joinToString(" ")}" },
-                transportType = if (isSse) McpTransportType.SSE else McpTransportType.STDIO,
-                command = command,
-                args = args,
-                env = env,
-                serverUrl = url,
-                isEnabled = true,
-                isBuiltin = false,
-            )
-        )
-    }
-    if (list.isEmpty()) error("未找到有效的 MCP 服务配置")
-    list
-}
