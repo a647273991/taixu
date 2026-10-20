@@ -54,6 +54,7 @@ fun SettingsScreen(
 ) {
     var showUsageNotice by rememberSaveable { mutableStateOf(false) }
     if (showUsageNotice) RuntimeUsageNoticeDialog(onDismiss = { showUsageNotice = false })
+    ApplyUiDensityPreference()
     val openPluginManager = LocalOpenPluginManager.current
     val models by viewModel?.models?.collectAsStateWithLifecycle() ?: previewStateOf(emptyList())
     val developer by viewModel?.developerMode?.collectAsStateWithLifecycle() ?: previewStateOf(false)
@@ -91,6 +92,7 @@ fun SettingsScreen(
                 }
             }
         }
+        item("ui_density") { UiDensityTuningSection() }
         item("appearance") {
             SettingsCategoryCard(
                 icon = RuntimeIconName.Palette,
